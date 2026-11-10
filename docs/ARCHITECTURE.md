@@ -47,6 +47,10 @@ The copied Computer Use service, Node runtime, and callers are re-signed under
 one Apple team. The helper uses a separate bundle identity and socket, avoiding
 the official app's privacy grants and app-group container.
 
+A status item opens Your dot in a popover. That window uses the same chrome-free
+layout as a page window. The popover realigns when its own window moves, which
+is how it follows the icon from one display to another.
+
 ## Plugin behavior
 
 Plugin definitions and managed MCP configuration are shared. The Plugins page

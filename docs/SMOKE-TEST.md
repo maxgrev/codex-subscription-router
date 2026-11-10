@@ -32,6 +32,12 @@ signature and reuse the same Apple team as the previous installed build.
   and MCP OAuth login reflect that account while installed definitions remain
   shared.
 
+## Your dot
+
+- Open Your dot from the menu bar. Confirm the conversation loads without the
+  sidebar, the call button lines up with the avatar, and a second click closes
+  the window.
+
 ## Appshots and Computer Use
 
 - In System Settings, grant Accessibility to Codex++ and

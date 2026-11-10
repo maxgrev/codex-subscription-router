@@ -18,6 +18,11 @@ binaries or a prebuilt application.
 > or supported by OpenAI. Review the source and ensure your use complies with
 > the terms governing every connected subscription.
 
+This repository continues Bennett Blackham's
+[Codex Subscription Router](https://github.com/b-nnett/codex-subscription-router).
+The fork names the app Codex++, opens Your dot from the menu bar, and keeps
+the patch current with later ChatGPT builds.
+
 ![Combined multi-account profile](screenshots/combined-profile-20px.png)
 
 ## Highlights
@@ -35,8 +40,11 @@ binaries or a prebuilt application.
   between accounts.
 - **Per-account resets.** The native rate-limit sheet shows and consumes resets
   for the selected subscription.
-- **Working macOS integrations.** The copied Appshots and Computer Use helper is
-  independently identified and signed so it can receive its own privacy grants.
+- **Your dot in the menu bar.** A status item opens only that conversation.
+  The call button stays centered on the avatar, and the window follows the icon
+  when the menu bar moves it to another display.
+- **Working macOS integrations.** Appshots and the Computer Use helper are
+  signed as their own apps, so they can receive their own privacy grants.
 
 ## How it works
 
@@ -73,8 +81,8 @@ Codex++ currently targets:
 | Component | Supported value |
 | --- | --- |
 | Platform | macOS on Apple silicon |
-| Official ChatGPT version | `26.803.61601` |
-| Official bundle build | `6396` |
+| Official ChatGPT version | `26.1103.60933` |
+| Official bundle build | `25894` |
 | Go | 1.26 or newer |
 | Node.js | 22.12 or newer |
 
