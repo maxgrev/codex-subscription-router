@@ -248,6 +248,16 @@ func (s *Server) accountAction(response http.ResponseWriter, request *http.Reque
 		return
 	}
 	switch parts[1] {
+	case "select":
+		preferredID := accountID
+		if current, ok := s.mux.PreferredAccount(); ok && current == accountID {
+			preferredID = ""
+		}
+		if err := s.mux.SetPreferredAccount(preferredID); err != nil {
+			writeJSON(response, http.StatusBadRequest, map[string]any{"error": err.Error()})
+			return
+		}
+		writeJSON(response, http.StatusOK, map[string]any{"ok": true, "preferredAccountId": preferredID})
 	case "login":
 		var input struct {
 			Mode string `json:"mode"`

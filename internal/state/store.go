@@ -26,9 +26,10 @@ type Account struct {
 }
 
 type persistedState struct {
-	Version     int               `json:"version"`
-	Accounts    []Account         `json:"accounts"`
-	ThreadOwner map[string]string `json:"threadOwner"`
+	Version            int               `json:"version"`
+	Accounts           []Account         `json:"accounts"`
+	ThreadOwner        map[string]string `json:"threadOwner"`
+	PreferredAccountID string            `json:"preferredAccountId,omitempty"`
 }
 
 // Store persists only routing metadata. OAuth credentials and conversation
@@ -40,6 +41,7 @@ type Store struct {
 	primaryCodexHome string
 	accounts         []Account
 	owners           map[string]string
+	preferredID      string
 }
 
 func Open(root, primaryCodexHome string) (*Store, error) {
@@ -73,6 +75,7 @@ func Open(root, primaryCodexHome string) (*Store, error) {
 		if persisted.ThreadOwner != nil {
 			store.owners = persisted.ThreadOwner
 		}
+		store.preferredID = persisted.PreferredAccountID
 	case errors.Is(err, os.ErrNotExist):
 		store.accounts = []Account{{
 			ID:         "primary",
@@ -122,6 +125,23 @@ func (s *Store) SyncManagedConfig() error {
 		}
 	}
 	return nil
+}
+
+// MaintainOfficialComputerUseConfig keeps the shared ~/.codex home on the
+// official helper so ChatGPT and the router can run Computer Use together.
+// Isolated homes are then retargeted back to the independently signed helper.
+func (s *Store) MaintainOfficialComputerUseConfig(home string) error {
+	s.mu.RLock()
+	primaryCodexHome := s.primaryCodexHome
+	s.mu.RUnlock()
+	changed, err := restoreOfficialComputerUseConfig(primaryCodexHome, home)
+	if err != nil {
+		return err
+	}
+	if !changed {
+		return nil
+	}
+	return s.SyncManagedConfig()
 }
 
 func (s *Store) Accounts() []Account {
@@ -208,6 +228,9 @@ func (s *Store) UpdateAccount(id string, label *string, enabled *bool) (Account,
 		}
 		if enabled != nil {
 			s.accounts[index].Enabled = *enabled
+			if !*enabled && s.preferredID == id {
+				s.preferredID = ""
+			}
 		}
 		if err := s.saveLocked(); err != nil {
 			return Account{}, err
@@ -215,6 +238,40 @@ func (s *Store) UpdateAccount(id string, label *string, enabled *bool) (Account,
 		return s.accounts[index], nil
 	}
 	return Account{}, fmt.Errorf("account %q not found", id)
+}
+
+func (s *Store) PreferredAccount() (string, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.preferredID == "" {
+		return "", false
+	}
+	return s.preferredID, true
+}
+
+func (s *Store) SetPreferredAccount(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	id = strings.TrimSpace(id)
+	if id == "" {
+		s.preferredID = ""
+		return s.saveLocked()
+	}
+	found := false
+	for _, account := range s.accounts {
+		if account.ID == id {
+			if !account.Enabled {
+				return fmt.Errorf("account %q is disabled", id)
+			}
+			found = true
+			break
+		}
+	}
+	if !found {
+		return fmt.Errorf("account %q not found", id)
+	}
+	s.preferredID = id
+	return s.saveLocked()
 }
 
 func (s *Store) ThreadOwner(threadID string) (string, bool) {
@@ -249,9 +306,10 @@ func (s *Store) ThreadCounts() map[string]int {
 
 func (s *Store) saveLocked() error {
 	persisted := persistedState{
-		Version:     stateVersion,
-		Accounts:    s.accounts,
-		ThreadOwner: s.owners,
+		Version:            stateVersion,
+		Accounts:           s.accounts,
+		ThreadOwner:        s.owners,
+		PreferredAccountID: s.preferredID,
 	}
 	data, err := json.MarshalIndent(persisted, "", "  ")
 	if err != nil {

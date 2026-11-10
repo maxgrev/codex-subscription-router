@@ -2,11 +2,13 @@
 
 set -euo pipefail
 
-readonly REPOSITORY_URL="https://github.com/b-nnett/codex-subscription-router.git"
+readonly REPOSITORY_URL="https://github.com/maxgrev/codex-subscription-router.git"
 readonly DEFAULT_SOURCE_DIR="${HOME}/.codex-subscription-router/source"
 readonly SOURCE_DIR="${CODEX_SUBSCRIPTION_ROUTER_SOURCE_DIR:-${DEFAULT_SOURCE_DIR}}"
-readonly DESTINATION_APP="${HOME}/Applications/Codex Subscription Router.app"
-readonly DESTINATION_HELPER="${HOME}/Applications/Codex Subscription Router Computer Use.app"
+readonly DESTINATION_APP="${HOME}/Applications/Codex++.app"
+readonly LEGACY_APP="${HOME}/Applications/Codex Subscription Router.app"
+readonly DESTINATION_HELPER="${HOME}/Applications/Codex++ Computer Use.app"
+readonly LEGACY_HELPER="${HOME}/Applications/Codex Subscription Router Computer Use.app"
 
 log() {
     printf '\n==> %s\n' "$1" >&2
@@ -19,10 +21,10 @@ fail() {
 
 require_prerequisites() {
     if [ "$(uname -s)" != "Darwin" ]; then
-        fail "Codex Subscription Router supports macOS only."
+        fail "Codex++ supports macOS only."
     fi
     if [ "$(uname -m)" != "arm64" ]; then
-        fail "Codex Subscription Router currently requires Apple silicon."
+        fail "Codex++ currently requires Apple silicon."
     fi
     if [ ! -d "/Applications/ChatGPT.app" ]; then
         fail "install the official ChatGPT app in /Applications first."
@@ -97,15 +99,15 @@ stop_bundle_processes() {
 
     for attempt in 1 2 3 4 5 6 7 8 9 10; do
         local found_process="false"
-        for process_id in $(pgrep -f "${bundle_path}/Contents/" 2>/dev/null || true); do
-            command_line="$(ps -p "${process_id}" -o command= 2>/dev/null || true)"
+        # Match the path as text; pgrep would read the "++" in Codex++ as a regex.
+        while read -r process_id command_line; do
             case "${command_line}" in
                 "${bundle_path}/Contents/"*)
                     found_process="true"
                     kill "${process_id}" 2>/dev/null || true
                     ;;
             esac
-        done
+        done < <(ps -ax -o pid=,command=)
         if [ "${found_process}" = "false" ]; then
             return
         fi
@@ -126,17 +128,20 @@ main() {
     npm ci --ignore-scripts --no-audit --no-fund
 
     local patch_arguments=()
-    if [ -d "${DESTINATION_APP}" ] || [ -d "${DESTINATION_HELPER}" ]; then
+    if [ -d "${DESTINATION_APP}" ] || [ -d "${LEGACY_APP}" ] ||
+        [ -d "${DESTINATION_HELPER}" ] || [ -d "${LEGACY_HELPER}" ]; then
         log "Stopping the existing installation"
         stop_bundle_processes "${DESTINATION_APP}"
+        stop_bundle_processes "${LEGACY_APP}"
         stop_bundle_processes "${DESTINATION_HELPER}"
+        stop_bundle_processes "${LEGACY_HELPER}"
         patch_arguments+=("--force")
     fi
 
-    log "Building and signing Codex Subscription Router"
-    python3 scripts/patch_app.py "${patch_arguments[@]}"
+    log "Building and signing Codex++"
+    python3 scripts/patch_app.py ${patch_arguments[@]+"${patch_arguments[@]}"}
 
-    log "Launching Codex Subscription Router"
+    log "Launching Codex++"
     open "${DESTINATION_APP}"
     printf '\nInstalled successfully: %s\n' "${DESTINATION_APP}"
 }

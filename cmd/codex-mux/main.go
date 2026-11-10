@@ -55,6 +55,17 @@ func run() error {
 	if primaryCodexHome == "" {
 		primaryCodexHome = filepath.Join(home, ".codex")
 	}
+	if os.Getenv("SKY_CUA_SERVICE_NATIVE_PIPE_PATH") == "" {
+		if err := os.Setenv("SKY_CUA_SERVICE_NATIVE_PIPE_PATH", filepath.Join(root, "computer-use.sock")); err != nil {
+			return fmt.Errorf("set Computer Use pipe: %w", err)
+		}
+	}
+	if os.Getenv("SKY_CUA_SERVICE_PATH") == "" {
+		helper := filepath.Join(home, "Applications", "Codex++ Computer Use.app")
+		if err := os.Setenv("SKY_CUA_SERVICE_PATH", helper); err != nil {
+			return fmt.Errorf("set Computer Use app: %w", err)
+		}
+	}
 	store, err := state.Open(root, primaryCodexHome)
 	if err != nil {
 		return err
@@ -76,6 +87,12 @@ func run() error {
 		return err
 	}
 	defer multiplexer.Close()
+	keepOfficialComputerUseConfig(ctx, store, primaryCodexHome, home)
+	defer func() {
+		if restoreErr := store.MaintainOfficialComputerUseConfig(home); restoreErr != nil {
+			fmt.Fprintf(os.Stderr, "codex-mux: restore official Computer Use config: %v\n", restoreErr)
+		}
+	}()
 
 	token, err := loadOrCreateToken(root)
 	if err != nil {
@@ -123,6 +140,37 @@ func run() error {
 	return scanner.Err()
 }
 
+func keepOfficialComputerUseConfig(ctx context.Context, store *state.Store, primaryCodexHome, home string) {
+	restore := func() {
+		if err := store.MaintainOfficialComputerUseConfig(home); err != nil {
+			fmt.Fprintf(os.Stderr, "codex-mux: restore official Computer Use config: %v\n", err)
+		}
+	}
+	restore()
+	if err := store.SyncManagedConfig(); err != nil {
+		fmt.Fprintf(os.Stderr, "codex-mux: sync isolated Computer Use config: %v\n", err)
+	}
+	go func() {
+		ticker := time.NewTicker(250 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				needsRestore, err := state.OfficialComputerUseConfigNeedsRestore(primaryCodexHome, home)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "codex-mux: check official Computer Use config: %v\n", err)
+					continue
+				}
+				if needsRestore {
+					restore()
+				}
+			}
+		}
+	}()
+}
+
 func resolveRealExecutable() (string, error) {
 	if configured := os.Getenv("CODEX_MUX_REAL_CODEX"); configured != "" {
 		return configured, nil
@@ -139,6 +187,13 @@ func resolveRealExecutable() (string, error) {
 }
 
 func isInteractiveAppServer(args []string) bool {
+	for _, argument := range args {
+		// The desktop reads organization settings with a one-shot app-server
+		// command. It must reach the real CLI, which prints JSON and exits.
+		if argument == "--print-startup-config" {
+			return false
+		}
+	}
 	for index, argument := range args {
 		if argument != "app-server" {
 			continue

@@ -8,6 +8,7 @@ func TestInteractiveAppServerDetection(t *testing.T) {
 		want bool
 	}{
 		{args: []string{"-c", "features.code_mode_host=true", "app-server", "--analytics-default-enabled"}, want: true},
+		{args: []string{"app-server", "--analytics-default-enabled", "--print-startup-config"}, want: false},
 		{args: []string{"app-server", "daemon", "version"}, want: false},
 		{args: []string{"app-server", "generate-ts", "--out", "/tmp/schema"}, want: false},
 		{args: []string{"exec", "hello"}, want: false},

@@ -24,6 +24,24 @@ func TestPlanLabel(t *testing.T) {
 	}
 }
 
+func TestPreferredSnapshotRequiresConnectedChatGPT(t *testing.T) {
+	snapshots := []AccountSnapshot{
+		{ID: "primary", Enabled: true, Connected: true, AuthType: "chatgpt"},
+		{ID: "work", Enabled: true, Connected: false, AuthType: "chatgpt"},
+		{ID: "api", Enabled: true, Connected: true, AuthType: "api"},
+	}
+	if _, ok := preferredSnapshot(snapshots, "work"); ok {
+		t.Fatal("disconnected preferred account should be skipped")
+	}
+	if _, ok := preferredSnapshot(snapshots, "api"); ok {
+		t.Fatal("non-ChatGPT preferred account should be skipped")
+	}
+	snapshot, ok := preferredSnapshot(snapshots, "primary")
+	if !ok || snapshot.ID != "primary" {
+		t.Fatalf("expected the connected ChatGPT account, got %#v ok=%v", snapshot, ok)
+	}
+}
+
 func TestLongestAndShortestWindowUsesQuotaDuration(t *testing.T) {
 	shortMinutes := int64(300)
 	weeklyMinutes := int64(10_080)

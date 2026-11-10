@@ -2,12 +2,11 @@ const CODEX_MUX_THREAD_API = "http://127.0.0.1:__CODEX_MUX_CONTROL_PORT__/v1";
 const CODEX_MUX_THREAD_TOKEN = "__CODEX_MUX_CONTROL_TOKEN__";
 
 function CodexMuxThreadSubscription() {
-  const route = $n(sr);
-  const threadId =
-    route.value.routeKind === "local-thread" ? route.value.conversationId : null;
-  const [account, setAccount] = TE.useState(null);
+  const route = La(N);
+  const threadId = ia(route.value);
+  const [account, setAccount] = aE.useState(null);
 
-  TE.useEffect(() => {
+  aE.useEffect(() => {
     let active = true;
     if (!threadId) {
       setAccount(null);
@@ -61,23 +60,23 @@ function CodexMuxThreadSubscription() {
   const remaining = weekly == null ? null : Math.max(0, 100 - weekly.usedPercent);
   const depleted = remaining === 0;
   const AccountAvatar = globalThis.CodexMuxAccountAvatar;
-  return (0, zE.jsx)(K.Section, {
+  return (0, xE.jsx)(Z.Section, {
     sectionKey: "codex-mux-subscription",
     title: "Subscription",
-    children: (0, zE.jsxs)("div", {
+    children: (0, xE.jsxs)("div", {
       className: "flex min-h-9 items-center justify-between gap-3 py-1 text-sm",
       children: [
-        (0, zE.jsxs)("div", {
+        (0, xE.jsxs)("div", {
           className: "flex min-w-0 items-center gap-2",
           children: [
             AccountAvatar
-              ? (0, zE.jsx)(AccountAvatar, {
+              ? (0, xE.jsx)(AccountAvatar, {
                   imageUrl: account.profileImageUrl,
                   label: account.label,
                   className: "size-5 shrink-0",
                 })
               : null,
-            (0, zE.jsx)("span", {
+            (0, xE.jsx)("span", {
               className: "truncate text-token-text-primary",
               children: account.planLabel
                 ? `${account.label} · ${account.planLabel}`
@@ -85,7 +84,7 @@ function CodexMuxThreadSubscription() {
             }),
           ],
         }),
-        (0, zE.jsx)("span", {
+        (0, xE.jsx)("span", {
           className: "shrink-0 tabular-nums text-token-description-foreground",
           children:
             remaining == null

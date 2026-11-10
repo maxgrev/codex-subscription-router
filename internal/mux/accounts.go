@@ -46,6 +46,7 @@ type AccountSnapshot struct {
 	ProfileImageURL string          `json:"profileImageUrl,omitempty"`
 	RateLimits      *RateLimits     `json:"rateLimits,omitempty"`
 	ThreadCount     int             `json:"threadCount"`
+	Preferred       bool            `json:"preferred,omitempty"`
 	Error           string          `json:"error,omitempty"`
 	CreatedAt       int64           `json:"createdAt"`
 	RawAccount      json.RawMessage `json:"-"`
@@ -59,6 +60,7 @@ type RouteReason struct {
 	ResetCreditExpiresAt *int64   `json:"resetCreditExpiresAt,omitempty"`
 	UrgencyScore         *float64 `json:"urgencyScore,omitempty"`
 	ThreadCount          int      `json:"threadCount"`
+	Preferred            bool     `json:"preferred,omitempty"`
 }
 
 func (m *Multiplexer) Accounts(ctx context.Context) []AccountSnapshot {
@@ -76,6 +78,9 @@ func (m *Multiplexer) accountSnapshots(ctx context.Context, includeProfile bool)
 					ID: account.ID, Label: account.Label, Enabled: account.Enabled,
 					Controller: account.Controller, CreatedAt: account.CreatedAt, Error: err.Error(),
 				}
+			}
+			if preferredID, ok := m.store.PreferredAccount(); ok {
+				snapshot.Preferred = snapshot.ID == preferredID
 			}
 			results <- snapshot
 		}(account)
@@ -206,7 +211,26 @@ func (m *Multiplexer) accountSnapshotWithProfile(ctx context.Context, accountID 
 		}
 	}
 	m.applyRateLimitPreview(&snapshot)
+	if preferredID, ok := m.store.PreferredAccount(); ok {
+		snapshot.Preferred = snapshot.ID == preferredID
+	}
 	return snapshot, nil
+}
+
+func (m *Multiplexer) PreferredAccount() (string, bool) {
+	return m.store.PreferredAccount()
+}
+
+func (m *Multiplexer) SetPreferredAccount(id string) error {
+	if err := m.store.SetPreferredAccount(id); err != nil {
+		return err
+	}
+	m.publish(Event{
+		Type:      "account-updated",
+		AccountID: id,
+		Message:   "Preferred subscription updated",
+	})
+	return nil
 }
 
 func planLabel(planType string) string {
@@ -238,8 +262,36 @@ func (m *Multiplexer) chooseAccount(ctx context.Context) (state.Account, RouteRe
 	return m.chooseAccountExcluding(ctx, nil)
 }
 
+func preferredSnapshot(snapshots []AccountSnapshot, preferredID string) (AccountSnapshot, bool) {
+	for _, snapshot := range snapshots {
+		if snapshot.ID != preferredID || !snapshot.Enabled || !snapshot.Connected || snapshot.AuthType != "chatgpt" {
+			continue
+		}
+		return snapshot, true
+	}
+	return AccountSnapshot{}, false
+}
+
 func (m *Multiplexer) chooseAccountExcluding(ctx context.Context, excluded map[string]struct{}) (state.Account, RouteReason, error) {
 	snapshots := m.accountSnapshots(ctx, false)
+	if preferredID, ok := m.store.PreferredAccount(); ok {
+		if _, skip := excluded[preferredID]; !skip {
+			if snapshot, found := preferredSnapshot(snapshots, preferredID); found {
+				if account, exists := m.store.Account(preferredID); exists {
+					reason := RouteReason{ThreadCount: snapshot.ThreadCount, Preferred: true}
+					if weekly, _ := longestAndShortestWindow(snapshot.RateLimits); weekly != nil {
+						used := weekly.UsedPercent
+						reason.WeeklyUsedPercent = &used
+						if weekly.ResetsAt != nil {
+							value := *weekly.ResetsAt
+							reason.WeeklyResetsAt = &value
+						}
+					}
+					return account, reason, nil
+				}
+			}
+		}
+	}
 	type candidate struct {
 		account      state.Account
 		reason       RouteReason

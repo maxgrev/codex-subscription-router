@@ -258,6 +258,35 @@ func (m *Multiplexer) routeExistingRequest(message protocol.Message) {
 	if threadID != "" {
 		accountID, _ = m.store.ThreadOwner(threadID)
 	}
+	if accountID == "" && threadID != "" {
+		if preferredID, ok := m.store.PreferredAccount(); ok {
+			if account, exists := m.store.Account(preferredID); exists && account.Enabled {
+				accountID = preferredID
+				_ = m.store.SetThreadOwner(threadID, preferredID)
+			}
+		}
+	}
+	if accountID == "" && message.Method == "turn/start" && threadID != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+		account, reason, err := m.chooseAccount(ctx)
+		cancel()
+		if err != nil {
+			if errors.Is(err, errNoSubscriptionCapacity) {
+				m.write(m.allSubscriptionsDepleted(context.Background(), message.ID))
+				return
+			}
+			m.write(protocol.Failure(message.ID, -32020, err.Error()))
+			return
+		}
+		accountID = account.ID
+		_ = m.store.SetThreadOwner(threadID, account.ID)
+		m.publish(Event{
+			Type:      "thread-routed",
+			AccountID: account.ID,
+			Message:   fmt.Sprintf("New chat pinned to %s", account.Label),
+			Data:      reason,
+		})
+	}
 	if accountID == "" {
 		if controller, ok := m.store.Controller(); ok {
 			accountID = controller.ID

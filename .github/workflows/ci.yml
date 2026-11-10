@@ -42,8 +42,12 @@ jobs:
       - name: Check Python syntax
         run: npm run check:python
 
-      - name: Check native launcher syntax
-        run: xcrun clang -fsyntax-only -Wall -Wextra native/launcher.c
+      - name: Check native stub syntax
+        run: >-
+          xcrun clang -fsyntax-only -Wall -Wextra
+          '-DFRAMEWORK_RELATIVE_PATH="../Frameworks/Codex Framework.framework/Versions/Current/Codex Framework"'
+          '-DPROFILE_NAME="Codex++"'
+          native/main_stub.c
 
       - name: Check installer syntax
         run: npm run check:shell
